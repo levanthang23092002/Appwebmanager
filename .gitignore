@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build
+backend/.next/
+backend/out/
+backend/build/
+frontends/dist/
+*.tsbuildinfo
+
+# Secrets (never commit)
+.env
+.env.local
+.env.production
+backend/.env
+frontends/.env
+
+# Keep examples
+!.env.example
+!**/.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Prisma generated (if any)
+backend/src/generated/
+
+# Archives / local DB
+*.rar
+*.zip
+*.db
+backend/dev.db

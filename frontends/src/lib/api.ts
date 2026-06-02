@@ -1,9 +1,19 @@
-const port =
-  typeof localStorage !== 'undefined' && localStorage.getItem('API_PORT')
-    ? localStorage.getItem('API_PORT')
-    : import.meta.env.VITE_API_PORT || '3001';
+function resolveApiBase(): string {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl !== undefined && envUrl !== '') return envUrl.replace(/\/$/, '');
 
-export const API_BASE = `http://localhost:${port}`;
+  if (import.meta.env.PROD && typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+
+  const port =
+    typeof localStorage !== 'undefined' && localStorage.getItem('API_PORT')
+      ? localStorage.getItem('API_PORT')
+      : import.meta.env.VITE_API_PORT || '3000';
+  return `http://localhost:${port}`;
+}
+
+export const API_BASE = resolveApiBase();
 
 let onUnauthorized: (() => void) | null = null;
 

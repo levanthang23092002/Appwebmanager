@@ -79,6 +79,7 @@ export async function PATCH(request: Request, context: RouteCtx) {
             type?: string;
             amount?: number;
             description?: string | null;
+            createdAt?: Date;
         } = {};
 
         if (data.type != null) {
@@ -97,6 +98,12 @@ export async function PATCH(request: Request, context: RouteCtx) {
         }
         if (data.description !== undefined) {
             updateData.description = data.description?.trim() || null;
+        }
+        if (data.costDate) {
+            const parsed = new Date(data.costDate);
+            if (Number.isFinite(parsed.getTime())) {
+                updateData.createdAt = parsed;
+            }
         }
 
         const updated = await prisma.cost.update({

@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AuthProvider } from './lib/auth';
+import { AttendancePage } from './pages/AttendancePage';
 import { CostsPage } from './pages/CostsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { FinancePage } from './pages/FinancePage';
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="tasks" element={<Navigate to="/tasks/assigned" replace />} />
             <Route path="tasks/:scope" element={<TasksPage />} />
             <Route path="costs" element={<CostsPage />} />
+            <Route path="attendance" element={<AttendancePage />} />
             <Route path="hr" element={<HrPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>

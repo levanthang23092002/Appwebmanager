@@ -53,12 +53,21 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Số tiền phải lớn hơn 0' }, { status: 400 });
         }
 
+        let createdAt = new Date();
+        if (data.costDate) {
+            const parsed = new Date(data.costDate);
+            if (Number.isFinite(parsed.getTime())) {
+                createdAt = parsed;
+            }
+        }
+
         const autoApproved = authUser.role === 'admin';
         const newCost = await prisma.cost.create({
             data: {
                 type,
                 amount,
                 description: data.description?.trim() || null,
+                createdAt,
                 approved: autoApproved,
                 approvedAt: autoApproved ? new Date() : null,
                 canceled: false,

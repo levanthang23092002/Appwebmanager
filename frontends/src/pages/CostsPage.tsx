@@ -457,18 +457,31 @@ export function CostsPage() {
               )}
             </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>
-                Số tiền <span className="text-danger">*</span>
-              </label>
-              <input
-                className="form-input"
-                type="text"
-                inputMode="numeric"
-                value={form.amount}
-                onChange={(e) => updateForm('amount', e.target.value)}
-                placeholder="Ví dụ: 100,000,000"
-              />
+            <div className="form-row" style={{ marginBottom: 16 }}>
+              <div className="form-group half">
+                <label>
+                  Ngày chi phí <span className="text-danger">*</span>
+                </label>
+                <input
+                  className="form-input"
+                  type="date"
+                  value={form.costDate}
+                  onChange={(e) => updateForm('costDate', e.target.value)}
+                />
+              </div>
+              <div className="form-group half">
+                <label>
+                  Số tiền <span className="text-danger">*</span>
+                </label>
+                <input
+                  className="form-input"
+                  type="text"
+                  inputMode="numeric"
+                  value={form.amount}
+                  onChange={(e) => updateForm('amount', e.target.value)}
+                  placeholder="Ví dụ: 100,000,000"
+                />
+              </div>
             </div>
 
             <div>

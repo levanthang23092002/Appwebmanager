@@ -14,6 +14,7 @@ const mainNav = [
 
 const manageNav = [
   { to: '/costs', label: 'Chi phí', icon: 'bx-wallet', end: false },
+  { to: '/attendance', label: 'Chấm công', icon: 'bx-time-five', end: false },
   { to: '/hr', label: 'Nhân sự', icon: 'bx-user-pin', end: false },
 ];
 
@@ -52,7 +53,8 @@ function NavItem({
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const { user, token, login, logout, canAccess } = useAuth();
-  const showManage = canAccess('/costs') || canAccess('/hr');
+  const showManage =
+    canAccess('/costs') || canAccess('/attendance') || canAccess('/hr');
   const [telegramModalOpen, setTelegramModalOpen] = useState(false);
   const needsTelegram = !!user && !user.telegram?.trim();
 

@@ -26,8 +26,38 @@ model User {
   approvedCosts   Cost[]        @relation("CostApprover")
   canceledCosts   Cost[]        @relation("CostCanceller")
   telegramLinks   TelegramLinkPending[]
+  attendances     Attendance[]
 
   @@index([status])
+}
+
+/** SSID WiFi công ty được phép chấm công */
+model CompanyWifi {
+  id        Int      @id @default(autoincrement())
+  ssid      String   @unique @db.VarChar(120)
+  label     String?  @db.VarChar(120)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
+}
+
+model Attendance {
+  id           Int       @id @default(autoincrement())
+  userId       Int
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date         DateTime  @db.Date
+  checkIn      DateTime?
+  checkOut     DateTime?
+  checkInSsid  String?   @db.VarChar(120)
+  checkOutSsid String?   @db.VarChar(120)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([userId, date])
+  @@index([date])
+  @@index([userId])
 }
 
 /** Mã tạm khi user bấm Start trên bot — gắn chat_id vào User.telegram */

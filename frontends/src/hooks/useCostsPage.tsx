@@ -23,6 +23,8 @@ export interface CostFormState {
   customType: string;
   amount: string;
   description: string;
+  /** YYYY-MM-DD — mặc định hôm nay khi thêm mới */
+  costDate: string;
 }
 
 export const COST_TYPE_CUSTOM = '__custom__';
@@ -41,12 +43,15 @@ export interface CostRow {
   createdAt?: string;
 }
 
-const EMPTY_FORM: CostFormState = {
-  type: '',
-  customType: '',
-  amount: '',
-  description: '',
-};
+function createDefaultForm(): CostFormState {
+  return {
+    type: '',
+    customType: '',
+    amount: '',
+    description: '',
+    costDate: toInputDate(new Date()),
+  };
+}
 
 const COST_CHART_COLORS = ['#ea4335', '#008373', '#8b5cf6', '#f59e0b', '#3b82f6', '#ef4444'];
 export const COST_TYPES = ['Google Ads', 'Bing Ads', 'Tài nguyên'] as const;
@@ -238,7 +243,7 @@ export function useCostsPage() {
   const [filterType, setFilterType] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState<CostFormState>(EMPTY_FORM);
+  const [form, setForm] = useState<CostFormState>(createDefaultForm);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
@@ -517,7 +522,7 @@ export function useCostsPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    setForm(createDefaultForm());
     setModalOpen(true);
   };
 
@@ -532,6 +537,9 @@ export function useCostsPage() {
       customType: isPresetCostType(row.type) ? '' : row.type,
       amount: formatAmountInput(row.amount),
       description: row.description || '',
+      costDate: row.createdAt
+        ? toInputDate(new Date(row.createdAt))
+        : toInputDate(new Date()),
     });
     setModalOpen(true);
   };
@@ -539,7 +547,7 @@ export function useCostsPage() {
   const closeModal = () => {
     setModalOpen(false);
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    setForm(createDefaultForm());
   };
 
   const updateForm = (field: keyof CostFormState, value: string) => {
@@ -572,12 +580,19 @@ export function useCostsPage() {
       return;
     }
 
+    const costDateObj = fromInputDate(form.costDate);
+    if (!costDateObj) {
+      alert('Vui lòng chọn ngày chi phí.');
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
         type: costType,
         amount,
         description: form.description.trim(),
+        costDate: costDateObj.toISOString(),
       };
       const path = editingId ? `/api/costs/${editingId}` : '/api/costs';
       const { ok, data } = await apiFetch<{ error?: string }>(path, {

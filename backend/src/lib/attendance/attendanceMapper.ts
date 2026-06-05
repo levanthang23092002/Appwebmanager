@@ -1,4 +1,5 @@
 import { toDateKey } from '@/lib/attendance/attendanceDate';
+import type { AttendanceWorkHours } from '@/lib/attendance/attendanceSettings';
 import { deriveAttendanceStatus } from '@/lib/attendance/attendanceStatus';
 
 type Row = {
@@ -12,10 +13,10 @@ type Row = {
     user?: { name: string } | null;
 };
 
-export function mapAttendanceRow(row: Row, todayKey: string) {
+export function mapAttendanceRow(row: Row, todayKey: string, settings: AttendanceWorkHours) {
     const dateKey = toDateKey(row.date);
     const isToday = dateKey === todayKey;
-    const status = deriveAttendanceStatus(row.checkIn, row.checkOut, isToday);
+    const status = deriveAttendanceStatus(row.checkIn, row.checkOut, isToday, settings);
     return {
         id: row.id,
         userId: row.userId,

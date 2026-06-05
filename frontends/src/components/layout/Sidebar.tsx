@@ -10,6 +10,7 @@ import { TasksNavGroup } from './TasksNavGroup';
 const mainNav = [
   { to: '/', label: 'Tổng quan', icon: 'bx-grid-alt', end: true },
   { to: '/finance', label: 'Affiliate (Doanh thu)', icon: 'bx-link', end: false },
+  { to: '/reports', label: 'Báo cáo ngày', icon: 'bx-notepad', end: false },
 ];
 
 const manageNav = [

@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/authRequest';
 import { mapAttendanceRow } from '@/lib/attendance/attendanceMapper';
 import { dateKeyToStorageDate, todayDateKey, toDateKey } from '@/lib/attendance/attendanceDate';
 import { resolveAttendanceSsid } from '@/lib/attendance/attendanceWifi';
+import { getAttendanceSettings } from '@/lib/attendance/attendanceSettings';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
@@ -23,6 +24,7 @@ export async function POST(request: Request) {
 
         const todayKey = todayDateKey();
         const today = dateKeyToStorageDate(todayKey);
+        const settings = await getAttendanceSettings();
 
         const existing = await prisma.attendance.findUnique({
             where: {
@@ -52,7 +54,7 @@ export async function POST(request: Request) {
                   include: { user: { select: { name: true } } },
               });
 
-        return NextResponse.json(mapAttendanceRow(row, todayKey), { status: 201 });
+        return NextResponse.json(mapAttendanceRow(row, todayKey, settings), { status: 201 });
     } catch (error) {
         console.error('POST attendance/check-in Error:', error);
         return NextResponse.json({ error: 'Không chấm vào được' }, { status: 500 });

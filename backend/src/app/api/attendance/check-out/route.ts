@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/authRequest';
 import { mapAttendanceRow } from '@/lib/attendance/attendanceMapper';
 import { todayDateKey, toDateKey } from '@/lib/attendance/attendanceDate';
 import { resolveAttendanceSsid } from '@/lib/attendance/attendanceWifi';
+import { getAttendanceSettings } from '@/lib/attendance/attendanceSettings';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
         }
 
         const todayKey = todayDateKey();
+        const settings = await getAttendanceSettings();
 
         let existing = await prisma.attendance.findFirst({
             where: {
@@ -43,7 +45,7 @@ export async function POST(request: Request) {
             include: { user: { select: { name: true } } },
         });
 
-        return NextResponse.json(mapAttendanceRow(row, todayKey));
+        return NextResponse.json(mapAttendanceRow(row, todayKey, settings));
     } catch (error) {
         console.error('POST attendance/check-out Error:', error);
         return NextResponse.json({ error: 'Không chấm ra được' }, { status: 500 });

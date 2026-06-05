@@ -8,6 +8,11 @@ import {
 } from '../lib/attendance/calendar';
 import { fetchAllowedWifiSsids } from '../lib/attendance/networkCheck';
 import {
+  formatWorkHoursRange,
+  setWorkHours,
+  type AttendanceWorkHours,
+} from '../lib/attendance/workHours';
+import {
   buildDaySummary,
   countMonthStats,
   deriveStatus,
@@ -47,6 +52,7 @@ export function useAttendancePage() {
   const [teamLoading, setTeamLoading] = useState(false);
   const [adminFilter, setAdminFilter] = useState('');
   const [viewUserId, setViewUserId] = useState<number | null>(null);
+  const [workHours, setWorkHoursState] = useState<AttendanceWorkHours | null>(null);
 
   const activeUserId = viewUserId ?? user?.id ?? 0;
   const wifiConfigured = wifiSsids.length > 0;
@@ -64,15 +70,29 @@ export function useAttendancePage() {
     setWifiSsids(ssids);
   }, []);
 
+  const loadWorkHours = useCallback(async () => {
+    const { ok, data } = await apiFetch<AttendanceWorkHours>('/api/attendance/settings');
+    if (ok) {
+      setWorkHours(data);
+      setWorkHoursState(data);
+    }
+  }, []);
+
   useEffect(() => {
     void loadWifiList();
-  }, [loadWifiList]);
+    void loadWorkHours();
+  }, [loadWifiList, loadWorkHours]);
 
   useEffect(() => {
     const onWifiUpdated = () => void loadWifiList();
+    const onSettingsUpdated = () => void loadWorkHours();
     window.addEventListener('attendance-wifi-updated', onWifiUpdated);
-    return () => window.removeEventListener('attendance-wifi-updated', onWifiUpdated);
-  }, [loadWifiList]);
+    window.addEventListener('attendance-settings-updated', onSettingsUpdated);
+    return () => {
+      window.removeEventListener('attendance-wifi-updated', onWifiUpdated);
+      window.removeEventListener('attendance-settings-updated', onSettingsUpdated);
+    };
+  }, [loadWifiList, loadWorkHours]);
 
   const loadMonthRecords = useCallback(async () => {
     if (!user) return;
@@ -304,6 +324,7 @@ export function useAttendancePage() {
     clockLoading,
     recordsLoading,
     wifiConfigured,
+    workHoursLabel: workHours ? formatWorkHoursRange(workHours) : null,
     formatAttendanceTime,
     teamRows,
     teamLoading,

@@ -1,22 +1,28 @@
-const LATE_HOUR = parseInt(process.env.ATTENDANCE_LATE_HOUR || '9', 10);
-const LATE_MINUTE = parseInt(process.env.ATTENDANCE_LATE_MINUTE || '0', 10);
+import type { AttendanceWorkHours } from '@/lib/attendance/attendanceSettings';
 
 export type AttendanceStatus = 'present' | 'late' | 'working' | 'absent';
 
-function isLate(checkIn: Date) {
+function isLateCheckIn(checkIn: Date, settings: AttendanceWorkHours) {
     const limit = new Date(checkIn);
-    limit.setHours(LATE_HOUR, LATE_MINUTE, 0, 0);
+    limit.setHours(settings.workStartHour, settings.workStartMinute, 0, 0);
     return checkIn > limit;
 }
 
 export function deriveAttendanceStatus(
     checkIn: Date | null | undefined,
     checkOut: Date | null | undefined,
-    isToday: boolean
+    isToday: boolean,
+    settings: AttendanceWorkHours
 ): AttendanceStatus {
     if (!checkIn) return 'absent';
     if (!checkOut) {
-        return isToday ? (isLate(checkIn) ? 'late' : 'working') : isLate(checkIn) ? 'late' : 'present';
+        return isToday
+            ? isLateCheckIn(checkIn, settings)
+                ? 'late'
+                : 'working'
+            : isLateCheckIn(checkIn, settings)
+              ? 'late'
+              : 'present';
     }
-    return isLate(checkIn) ? 'late' : 'present';
+    return isLateCheckIn(checkIn, settings) ? 'late' : 'present';
 }

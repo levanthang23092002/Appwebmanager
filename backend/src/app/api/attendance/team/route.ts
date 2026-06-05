@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/authRequest';
 import { mapAttendanceRow } from '@/lib/attendance/attendanceMapper';
 import { monthRange, parseYearMonth, todayDateKey } from '@/lib/attendance/attendanceDate';
+import { getAttendanceSettings } from '@/lib/attendance/attendanceSettings';
 import { USER_STATUS } from '@/lib/userStatus';
 import { prisma } from '@/lib/prisma';
 
@@ -31,6 +32,7 @@ export async function GET(request: Request) {
 
         const { start, end } = monthRange(ym.year, ym.month);
         const todayKey = todayDateKey();
+        const settings = await getAttendanceSettings();
 
         const [users, records] = await Promise.all([
             prisma.user.findMany({
@@ -47,7 +49,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             users,
-            records: records.map((r) => mapAttendanceRow(r, todayKey)),
+            records: records.map((r) => mapAttendanceRow(r, todayKey, settings)),
         });
     } catch (error) {
         console.error('GET attendance/team Error:', error);

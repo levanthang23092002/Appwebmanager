@@ -4,6 +4,7 @@ import {
   AttendanceDayDetail,
 } from '../components/attendance/AttendanceCalendar';
 import { AttendanceClockCard } from '../components/attendance/AttendanceClockCard';
+import { AttendanceSettingsManage } from '../components/attendance/AttendanceSettingsManage';
 import { AttendanceWifiManage } from '../components/attendance/AttendanceWifiManage';
 import { useAttendancePage } from '../hooks/useAttendancePage';
 
@@ -46,7 +47,10 @@ export function AttendancePage() {
 
       {att.viewTab === 'team' && att.isAdmin && (
         <section className="att-admin-panel">
-          <AttendanceWifiManage />
+          <div className="att-admin-config-row">
+            <AttendanceSettingsManage />
+            <AttendanceWifiManage />
+          </div>
           <AttendanceAdminPanel
             rows={att.teamRows}
             loading={att.teamLoading}
@@ -98,6 +102,7 @@ export function AttendancePage() {
                 canCheckOut={att.canCheckOut}
                 loading={att.clockLoading}
                 wifiConfigured={att.wifiConfigured}
+                workHoursLabel={att.workHoursLabel}
                 onCheckIn={att.clockIn}
                 onCheckOut={att.clockOut}
               />

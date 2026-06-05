@@ -1,4 +1,4 @@
-import { LATE_AFTER_HOUR, LATE_AFTER_MINUTE } from './config';
+import { getWorkHours } from './workHours';
 import { isWeekend, parseDateKey, toDateKey } from './calendar';
 import type { AttendanceDayStatus, AttendanceRecord, DaySummary } from './types';
 
@@ -22,8 +22,9 @@ export function formatAttendanceDate(iso?: string) {
 }
 
 function isLateCheckIn(checkIn: Date) {
+  const { workStartHour, workStartMinute } = getWorkHours();
   const limit = new Date(checkIn);
-  limit.setHours(LATE_AFTER_HOUR, LATE_AFTER_MINUTE, 0, 0);
+  limit.setHours(workStartHour, workStartMinute, 0, 0);
   return checkIn > limit;
 }
 

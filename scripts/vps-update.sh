@@ -1,28 +1,47 @@
 #!/usr/bin/env bash
 # Chạy trên VPS sau khi đã deploy lần đầu:
 #   cd /var/www/appwebmanager && bash scripts/vps-update.sh
+#
+# Nếu bị "Killed" → VPS thiếu RAM: thêm swap (xem DEPLOY.md) rồi chạy lại.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# Giảm peak RAM khi npm ci / next build
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=768}"
+export npm_config_audit=false
+export npm_config_fund=false
+
+npm_install() {
+  if [[ -f package-lock.json ]]; then
+    npm ci --no-audit --no-fund "$@"
+  else
+    npm install --no-audit --no-fund "$@"
+  fi
+}
+
 echo "==> Git pull..."
 git pull --ff-only
 
-echo "==> Backend..."
+echo "==> Backend (npm ci + build)..."
 cd "$ROOT/backend"
-npm ci
+npm_install
 npm run build
-# Cập nhật bảng nếu schema.prisma đổi (Attendance, CompanyWifi, ...)
 npm run db:push
 
-echo "==> Frontend..."
+echo "==> Frontend (npm ci + build)..."
 cd "$ROOT/frontends"
-npm ci
+npm_install
 npm run build
 
 echo "==> Restart API..."
-pm2 restart api || pm2 start npm --name api -- start
+if pm2 describe api &>/dev/null; then
+  pm2 restart api
+else
+  cd "$ROOT/backend"
+  pm2 start npm --name api -- start
+fi
 
 pm2 save
-echo "==> Xong. Mở site và Ctrl+F5 (hard refresh) nếu UI chưa đổi."
+echo "==> Xong. Ctrl+F5 trên trình duyệt nếu UI chưa đổi."

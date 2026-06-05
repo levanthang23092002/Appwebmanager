@@ -3,7 +3,8 @@ export type NotificationKind =
   | 'user_approve'
   | 'task_accept'
   | 'task_do'
-  | 'task_review';
+  | 'task_review'
+  | 'report_submit';
 
 export interface AppNotification {
   id: string;
@@ -26,6 +27,7 @@ export const NOTIFICATION_ICONS: Record<NotificationKind, string> = {
   task_accept: 'bx-user-check',
   task_do: 'bx-task',
   task_review: 'bx-check-shield',
+  report_submit: 'bx-notepad',
 };
 
 export function formatNotificationTime(iso: string) {

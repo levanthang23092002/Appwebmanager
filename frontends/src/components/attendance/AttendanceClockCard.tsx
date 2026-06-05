@@ -7,6 +7,7 @@ interface Props {
   canCheckOut: boolean;
   loading: boolean;
   wifiConfigured: boolean;
+  workHoursLabel?: string | null;
   onCheckIn: () => void;
   onCheckOut: () => void;
 }
@@ -17,6 +18,7 @@ export function AttendanceClockCard({
   canCheckOut,
   loading,
   wifiConfigured,
+  workHoursLabel,
   onCheckIn,
   onCheckOut,
 }: Props) {
@@ -35,6 +37,12 @@ export function AttendanceClockCard({
             <i className={`bx ${wifiConfigured ? 'bx-wifi' : 'bx-wifi-off'}`} aria-hidden />
             {wifiConfigured ? 'WiFi công ty' : 'Chưa cấu hình'}
           </span>
+          {workHoursLabel && (
+            <span className="att-network-pill att-network-pill--hours">
+              <i className="bx bx-time-five" aria-hidden />
+              {workHoursLabel}
+            </span>
+          )}
         </div>
 
         <div className="att-clock-times">

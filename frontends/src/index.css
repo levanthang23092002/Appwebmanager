@@ -6,6 +6,7 @@
 @import './styles/responsive.css';
 @import './styles/auth.css';
 @import './styles/attendance.css';
+@import './styles/reports.css';
 
 #root {
   min-height: 100vh;

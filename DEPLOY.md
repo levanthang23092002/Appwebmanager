@@ -258,15 +258,50 @@ Trình duyệt: **Ctrl+F5** (hoặc xóa cache) để thấy giao diện mới.
 
 **Không ghi đè:** file `backend/.env` trên VPS (git không commit `.env`). Sau pull vẫn giữ mật khẩu DB / JWT cũ.
 
+### VPS báo `Killed` khi `npm ci` (hết RAM)
+
+VPS 1GB RAM thường bị Linux **OOM killer** tắt `npm`. Làm **một lần**:
+
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+free -h
+```
+
+Rồi chạy lại `bash scripts/vps-update.sh`.
+
+Hoặc cài từng phần (ít peak RAM hơn):
+
+```bash
+cd /var/www/appwebmanager/backend
+NODE_OPTIONS=--max-old-space-size=768 npm ci --no-audit --no-fund
+npm run build
+npm run db:push
+pm2 restart api
+
+cd ../frontends
+NODE_OPTIONS=--max-old-space-size=768 npm ci --no-audit --no-fund
+npm run build
+```
+
+Cảnh báo `EBADENGINE` Prisma/node 22 trên Node 20 thường **chỉ là warn**, không phải nguyên nhân `Killed`.
+
 ### Lỗi thường gặp khi update
 
 | Lỗi | Cách xử lý |
 |-----|------------|
+| `npm ci` → `Killed` | Thêm swap 2GB (mục trên) hoặc nâng RAM VPS |
 | `git pull` conflict | `git stash` hoặc sửa conflict; tránh sửa code trực tiếp trên VPS |
 | `P1000` / DB | Kiểm tra `DATABASE_URL` trong `backend/.env` |
 | `db:push` báo mất data | Đọc kỹ câu hỏi Prisma; backup DB trước: `mysqldump entdash > backup.sql` |
 | Site cũ, API mới | Hard refresh; kiểm tra `frontends/dist` có file mới (`ls -la dist`) |
 | 502 Bad Gateway | `pm2 status` → `pm2 logs api` — API chưa chạy hoặc crash sau build |
+| Frontend OK, API 500 | `bash scripts/vps-backend-check.sh` — build backend + `db:push` + restart PM2 |
+| `companyWifi` / table không tồn tại | `cd backend && npm run db:push` |
+| `DATABASE_URL chưa được cấu hình` | PM2 chạy sai thư mục — `cd backend && pm2 delete api && pm2 start npm --name api -- start` |
 | Login 404 | User chưa có trên DB production — tạo admin như mục trên |
 
 ### Upload WinSCP (không dùng Git)

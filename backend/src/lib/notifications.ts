@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import type { AuthPayload } from './authRequest';
+import { REPORT_STATUS } from './reports/reportMapper';
 import { TASK_STATUS } from './taskStatus';
 
 export type NotificationKind =
@@ -7,7 +8,8 @@ export type NotificationKind =
   | 'user_approve'
   | 'task_accept'
   | 'task_do'
-  | 'task_review';
+  | 'task_review'
+  | 'report_submit';
 
 export interface AppNotification {
   id: string;
@@ -64,6 +66,28 @@ export async function getNotificationsForUser(user: AuthPayload): Promise<AppNot
         href: '/hr',
         createdAt: u.createdAt.toISOString(),
         entityId: u.id,
+      });
+    }
+
+    const recentReports = await prisma.dailyReport.findMany({
+      where: {
+        status: REPORT_STATUS.SUBMITTED,
+        submittedAt: { not: null },
+      },
+      include: { user: { select: { name: true } } },
+      orderBy: { submittedAt: 'desc' },
+      take: 30,
+    });
+
+    for (const report of recentReports) {
+      items.push({
+        id: `report-${report.id}`,
+        kind: 'report_submit',
+        title: 'Báo cáo cuối ngày',
+        message: `${report.user.name} đã nộp báo cáo`,
+        href: '/reports',
+        createdAt: report.submittedAt!.toISOString(),
+        entityId: report.id,
       });
     }
   }

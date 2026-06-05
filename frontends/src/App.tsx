@@ -9,6 +9,7 @@ import { FinancePage } from './pages/FinancePage';
 import { HrPage } from './pages/HrPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { TasksPage } from './pages/TasksPage';
 
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="tasks/:scope" element={<TasksPage />} />
             <Route path="costs" element={<CostsPage />} />
             <Route path="attendance" element={<AttendancePage />} />
+            <Route path="reports" element={<ReportsPage />} />
             <Route path="hr" element={<HrPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/authRequest';
 import { mapAttendanceRow } from '@/lib/attendance/attendanceMapper';
 import { monthRange, parseYearMonth, todayDateKey } from '@/lib/attendance/attendanceDate';
+import { getAttendanceSettings } from '@/lib/attendance/attendanceSettings';
 import { prisma } from '@/lib/prisma';
 
 /** Admin xem lịch 1 nhân viên */
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
 
         const { start, end } = monthRange(ym.year, ym.month);
         const todayKey = todayDateKey();
+        const settings = await getAttendanceSettings();
 
         const rows = await prisma.attendance.findMany({
             where: {
@@ -36,7 +38,7 @@ export async function GET(request: Request) {
             orderBy: { date: 'asc' },
         });
 
-        return NextResponse.json(rows.map((r) => mapAttendanceRow(r, todayKey)));
+        return NextResponse.json(rows.map((r) => mapAttendanceRow(r, todayKey, settings)));
     } catch (error) {
         console.error('GET attendance Error:', error);
         return NextResponse.json({ error: 'Failed to fetch attendance' }, { status: 500 });

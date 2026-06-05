@@ -27,8 +27,19 @@ model User {
   canceledCosts   Cost[]        @relation("CostCanceller")
   telegramLinks   TelegramLinkPending[]
   attendances     Attendance[]
+  dailyReports    DailyReport[]
 
   @@index([status])
+}
+
+/** Giờ làm việc chấm công (một bản ghi duy nhất, id = 1) */
+model AttendanceSettings {
+  id              Int      @id @default(1)
+  workStartHour   Int      @default(9)
+  workStartMinute Int      @default(0)
+  workEndHour     Int      @default(18)
+  workEndMinute   Int      @default(0)
+  updatedAt       DateTime @updatedAt
 }
 
 /** SSID WiFi công ty được phép chấm công */
@@ -57,6 +68,26 @@ model Attendance {
 
   @@unique([userId, date])
   @@index([date])
+  @@index([userId])
+}
+
+/** Báo cáo công việc cuối ngày — một bản ghi / user / ngày */
+model DailyReport {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        DateTime  @db.Date
+  content     String    @db.Text
+  planNext    String?   @db.Text
+  blockers    String?   @db.Text
+  status      String    @default("DRAFT")
+  submittedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, date])
+  @@index([date])
+  @@index([status])
   @@index([userId])
 }
 

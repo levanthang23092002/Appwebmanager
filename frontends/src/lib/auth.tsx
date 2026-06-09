@@ -94,10 +94,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (path: string) => {
       if (!user) return false;
       const role = user.role as UserRole;
+      if (path === '/system') return role === 'admin';
       if (role === 'admin') return true;
       if (role === 'manager' && path === '/hr') return false;
-      if (role === 'staff' && ['/finance', '/hr'].includes(path))
-        return false;
+      if (role === 'staff' && path === '/hr') return false;
       return true;
     },
     [user]

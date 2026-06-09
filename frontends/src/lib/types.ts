@@ -87,6 +87,8 @@ export interface CostRecord {
   id: number;
   type: string;
   amount: number;
+  currency?: string;
+  usdVndRate?: number;
   description?: string | null;
   approved: boolean;
   approvedAt?: string | null;

@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import logoImg from '../assets/logo.png';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useSystemSettings } from '../lib/systemSettings';
 import type { AuthUser } from '../lib/types';
 
 export function LoginPage() {
   const { login, token } = useAuth();
+  const { logoUrl, settings } = useSystemSettings();
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,10 +46,10 @@ export function LoginPage() {
     <div className="auth-page">
       <div className="auth-container">
         <div className="auth-logo-block">
-          <img src={logoImg} alt="Eagle Rise — Nâng tầm khát vọng" className="logo-img" />
+          <img src={logoUrl} alt={settings.appName} className="logo-img" />
         </div>
         <h1 className="auth-title">Chào mừng trở lại</h1>
-        <p className="auth-subtitle">Đăng nhập vào Hệ thống Quản trị Eagle Rise</p>
+        <p className="auth-subtitle">Đăng nhập vào Hệ thống Quản trị {settings.appName}</p>
 
         {error && <p className="auth-msg-error">{error}</p>}
 

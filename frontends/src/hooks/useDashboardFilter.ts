@@ -2,6 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import {
+  convertAmount,
+  formatMoney,
+  normalizeCurrency,
+  normalizeUsdVndRate,
+  type CurrencyCode,
+} from '../lib/currency';
 import { downloadCsv } from '../lib/downloadCsv';
 import { TASK_STATUS } from '../lib/taskMaps';
 import type { CostRecord, TaskItem } from '../lib/types';
@@ -17,7 +24,19 @@ interface DashboardExportActivity {
 interface AffiliateRecord {
   id: number;
   amount: number;
+  currency?: string;
+  usdVndRate?: number;
   date?: string;
+}
+
+interface DashboardSummary {
+  revenue: number;
+  costs: number;
+  profit: number;
+  labelSuffix: string;
+  revenueTrend: { positive: boolean; value: string };
+  costTrend: { positive: boolean; value: string };
+  profitTrend: { positive: boolean; value: string };
 }
 
 const mockDataSets: Record<string, { mult: number; label: string; xAxis: string[] }> = {
@@ -75,8 +94,8 @@ function startOfWeek(date: Date) {
   return d;
 }
 
-function formatCostAmount(amount: number) {
-  return `${amount.toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫`;
+function formatDisplayAmount(amount: number, display: CurrencyCode) {
+  return formatMoney(amount, display);
 }
 
 function pad(n: number) {
@@ -208,22 +227,48 @@ function getPeriodRanges(filter: string) {
   return { start, end, prevStart, prevEnd, labelSuffix: config.label, xAxis: config.xAxis };
 }
 
-function sumCostsInRange(costs: CostRecord[], start: Date, end: Date) {
+function sumCostsInRange(
+  costs: CostRecord[],
+  start: Date,
+  end: Date,
+  display: CurrencyCode
+) {
   return costs.reduce((sum, cost) => {
     if (cost.canceled || !cost.approved) return sum;
     const createdAt = cost.createdAt ? new Date(cost.createdAt) : null;
     if (!createdAt || Number.isNaN(createdAt.getTime())) return sum;
     if (createdAt < start || createdAt > end) return sum;
-    return sum + cost.amount;
+    return (
+      sum +
+      convertAmount(
+        cost.amount,
+        normalizeCurrency(cost.currency, 'VND'),
+        normalizeUsdVndRate(cost.usdVndRate),
+        display
+      )
+    );
   }, 0);
 }
 
-function sumRevenueInRange(rows: AffiliateRecord[], start: Date, end: Date) {
+function sumRevenueInRange(
+  rows: AffiliateRecord[],
+  start: Date,
+  end: Date,
+  display: CurrencyCode
+) {
   return rows.reduce((sum, row) => {
     const txDate = row.date ? new Date(row.date) : null;
     if (!txDate || Number.isNaN(txDate.getTime())) return sum;
     if (txDate < start || txDate > end) return sum;
-    return sum + row.amount;
+    return (
+      sum +
+      convertAmount(
+        row.amount,
+        normalizeCurrency(row.currency, 'USD'),
+        normalizeUsdVndRate(row.usdVndRate),
+        display
+      )
+    );
   }, 0);
 }
 
@@ -262,44 +307,38 @@ function calcTaskProgress(tasks: TaskItem[], filter: string) {
 }
 
 async function loadDashboardTasks() {
-  const { ok, data } = await apiFetch<TaskItem[]>('/api/tasks?scope=assigned');
+  const { ok, data } = await apiFetch<TaskItem[]>('/api/tasks?scope=assigned&lite=1');
   if (ok && Array.isArray(data)) return data;
   return [];
 }
 
-function computeStats(
+function buildStats(
   filter: string,
-  costRows: CostRecord[],
+  summary: DashboardSummary,
   taskRows: TaskItem[],
-  affiliateRows: AffiliateRecord[]
+  display: CurrencyCode
 ) {
-  const ranges = getPeriodRanges(filter);
-  const currentCosts = sumCostsInRange(costRows, ranges.start, ranges.end);
-  const previousCosts = sumCostsInRange(costRows, ranges.prevStart, ranges.prevEnd);
-  const currentRevenue = sumRevenueInRange(affiliateRows, ranges.start, ranges.end);
-  const previousRevenue = sumRevenueInRange(affiliateRows, ranges.prevStart, ranges.prevEnd);
-  const currentProfit = currentRevenue - currentCosts;
-  const previousProfit = previousRevenue - previousCosts;
+  const config = mockDataSets[filter] || mockDataSets.month;
   const taskProgress = calcTaskProgress(taskRows, filter);
 
   return {
-    revenue: formatCostAmount(currentRevenue),
-    costs: formatCostAmount(currentCosts),
-    profit: formatCostAmount(currentProfit),
+    revenue: formatDisplayAmount(summary.revenue, display),
+    costs: formatDisplayAmount(summary.costs, display),
+    profit: formatDisplayAmount(summary.profit, display),
     progressPct: `${taskProgress.pct}%`,
     taskDone: taskProgress.done,
     taskTotal: taskProgress.total,
-    labelSuffix: ranges.labelSuffix,
-    xAxis: ranges.xAxis,
+    labelSuffix: summary.labelSuffix,
+    xAxis: config.xAxis,
     progress: taskProgress.pct,
-    revenueTrend: calcTrend(currentRevenue, previousRevenue),
-    costTrend: calcTrend(currentCosts, previousCosts),
-    profitTrend: calcTrend(currentProfit, previousProfit),
+    revenueTrend: summary.revenueTrend,
+    costTrend: summary.costTrend,
+    profitTrend: summary.profitTrend,
   };
 }
 
 export function useDashboardFilter(options?: { onRealtime?: () => void }) {
-  const { token, loading: authLoading } = useAuth();
+  const { user, token, loading: authLoading } = useAuth();
   const location = useLocation();
   const onRealtimeRef = useRef(options?.onRealtime);
   onRealtimeRef.current = options?.onRealtime;
@@ -307,33 +346,46 @@ export function useDashboardFilter(options?: { onRealtime?: () => void }) {
   const [showCustom, setShowCustom] = useState(false);
   const [sseReady, setSseReady] = useState(false);
   const [barHeights, setBarHeights] = useState([60, 40, 80, 50, 40, 30, 90, 65, 70, 45, 100, 60]);
-  const [costRows, setCostRows] = useState<CostRecord[]>([]);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [taskRows, setTaskRows] = useState<TaskItem[]>([]);
-  const [affiliateRows, setAffiliateRows] = useState<AffiliateRecord[]>([]);
+  const [displayCurrency, setDisplayCurrency] = useState<CurrencyCode>('USD');
+  const filterRef = useRef(filter);
+  const displayRef = useRef(displayCurrency);
+  const loadedFilterDisplayRef = useRef({ filter, displayCurrency });
+  filterRef.current = filter;
+  displayRef.current = displayCurrency;
 
-  const loadDashboardData = useCallback(async (opts?: { silent?: boolean }) => {
-    const silent = opts?.silent ?? false;
+  const affiliateScope =
+    user?.role === 'admin' || user?.role === 'manager' ? 'team' : 'mine';
+
+  const loadSummary = useCallback(async () => {
+    const { ok, data } = await apiFetch<DashboardSummary>(
+      `/api/dashboard/summary?scope=${affiliateScope}&display=${displayRef.current}&filter=${filterRef.current}`
+    );
+    if (ok) setSummary(data);
+  }, [affiliateScope]);
+
+  const loadDashboardData = useCallback(async () => {
     try {
-      const [costs, tasks, affiliates] = await Promise.all([
-        apiFetch<CostRecord[]>('/api/costs'),
+      const [summaryRes, tasks] = await Promise.all([
+        apiFetch<DashboardSummary>(
+          `/api/dashboard/summary?scope=${affiliateScope}&display=${displayRef.current}&filter=${filterRef.current}`
+        ),
         loadDashboardTasks(),
-        apiFetch<AffiliateRecord[]>('/api/affiliates'),
       ]);
-      if (costs.ok && Array.isArray(costs.data)) setCostRows(costs.data);
-      else if (!silent) setCostRows([]);
+      if (summaryRes.ok) setSummary(summaryRes.data);
       setTaskRows(Array.isArray(tasks) ? tasks : []);
-      if (affiliates.ok && Array.isArray(affiliates.data)) setAffiliateRows(affiliates.data);
-      else if (!silent) setAffiliateRows([]);
+      loadedFilterDisplayRef.current = {
+        filter: filterRef.current,
+        displayCurrency: displayRef.current,
+      };
     } catch {
-      if (!silent) {
-        setCostRows([]);
-        setTaskRows([]);
-        setAffiliateRows([]);
-      }
+      setSummary(null);
+      setTaskRows([]);
     } finally {
       setSseReady(true);
     }
-  }, []);
+  }, [affiliateScope]);
 
   const loadRef = useRef(loadDashboardData);
   loadRef.current = loadDashboardData;
@@ -344,10 +396,30 @@ export function useDashboardFilter(options?: { onRealtime?: () => void }) {
     void loadDashboardData();
   }, [authLoading, token, loadDashboardData, location.key]);
 
+  useEffect(() => {
+    if (authLoading || !token || !sseReady) return;
+    const loaded = loadedFilterDisplayRef.current;
+    if (loaded.filter === filter && loaded.displayCurrency === displayCurrency) return;
+    loadedFilterDisplayRef.current = { filter, displayCurrency };
+    void loadSummary();
+  }, [authLoading, filter, displayCurrency, loadSummary, sseReady, token]);
+
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const refreshAll = useCallback(() => {
-    void loadRef.current({ silent: true });
-    onRealtimeRef.current?.();
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      void loadRef.current();
+      onRealtimeRef.current?.();
+    }, 600);
   }, []);
+
+  useEffect(
+    () => () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    },
+    []
+  );
 
   useServerEvents({
     token: sseReady ? token : null,
@@ -369,10 +441,26 @@ export function useDashboardFilter(options?: { onRealtime?: () => void }) {
     setBarHeights(Array.from({ length: 12 }, () => Math.random() * 70 + 20));
   }, [filter]);
 
-  const stats = useMemo(
-    () => computeStats(filter, costRows, taskRows, affiliateRows),
-    [filter, costRows, taskRows, affiliateRows]
-  );
+  const stats = useMemo(() => {
+    if (!summary) {
+      const config = mockDataSets[filter] || mockDataSets.month;
+      return {
+        revenue: '…',
+        costs: '…',
+        profit: '…',
+        progressPct: '0%',
+        taskDone: 0,
+        taskTotal: 0,
+        labelSuffix: config.label,
+        xAxis: config.xAxis,
+        progress: 0,
+        revenueTrend: { positive: true, value: '0.0' },
+        costTrend: { positive: true, value: '0.0' },
+        profitTrend: { positive: true, value: '0.0' },
+      };
+    }
+    return buildStats(filter, summary, taskRows, displayCurrency);
+  }, [displayCurrency, filter, summary, taskRows]);
 
   const trends = useMemo(
     () => [stats.revenueTrend, stats.costTrend, stats.profitTrend],
@@ -412,12 +500,29 @@ export function useDashboardFilter(options?: { onRealtime?: () => void }) {
   }, [filter]);
 
   const exportReport = useCallback(
-    (activities: DashboardExportActivity[] = []) => {
+    async (activities: DashboardExportActivity[] = []) => {
+      const [costsRes, affiliatesRes] = await Promise.all([
+        apiFetch<CostRecord[]>('/api/costs'),
+        apiFetch<AffiliateRecord[]>(`/api/affiliates?scope=${affiliateScope}`),
+      ]);
+      const costRows = costsRes.ok && Array.isArray(costsRes.data) ? costsRes.data : [];
+      const affiliateRows =
+        affiliatesRes.ok && Array.isArray(affiliatesRes.data) ? affiliatesRes.data : [];
+
       const ranges = getPeriodRanges(filter);
-      const currentCosts = sumCostsInRange(costRows, ranges.start, ranges.end);
-      const currentRevenue = sumRevenueInRange(affiliateRows, ranges.start, ranges.end);
+      const currentCosts = sumCostsInRange(costRows, ranges.start, ranges.end, displayCurrency);
+      const currentRevenue = sumRevenueInRange(affiliateRows, ranges.start, ranges.end, displayCurrency);
       const currentProfit = currentRevenue - currentCosts;
+      const currencyLabel = displayCurrency === 'USD' ? '$' : '₫';
       const taskProgress = calcTaskProgress(taskRows, filter);
+      const exportStats = summary ?? {
+        revenue: currentRevenue,
+        costs: currentCosts,
+        profit: currentProfit,
+        revenueTrend: calcTrend(currentRevenue, 0),
+        costTrend: calcTrend(currentCosts, 0),
+        profitTrend: calcTrend(currentProfit, 0),
+      };
 
       const periodCosts = costRows.filter((cost) => {
         if (cost.canceled || !cost.approved) return false;
@@ -440,17 +545,21 @@ export function useDashboardFilter(options?: { onRealtime?: () => void }) {
         ['Đến ngày', toInputDate(ranges.end)],
         [],
         ['TÓM TẮT'],
-        ['Chỉ số', 'Giá trị (₫)', 'Xu hướng'],
-        [revenueLabel, currentRevenue, formatTrendExport(stats.revenueTrend)],
-        [costLabel, currentCosts, formatTrendExport(stats.costTrend)],
-        ['Lợi nhuận ròng', currentProfit, formatTrendExport(stats.profitTrend)],
+        ['Chỉ số', `Giá trị (${currencyLabel})`, 'Xu hướng'],
+        [revenueLabel, exportStats.revenue, formatTrendExport(exportStats.revenueTrend)],
+        [costLabel, exportStats.costs, formatTrendExport(exportStats.costTrend)],
+        ['Lợi nhuận ròng', exportStats.profit, formatTrendExport(exportStats.profitTrend)],
         [],
         ['TIẾN ĐỘ CÔNG VIỆC'],
         ['Hoàn thành', 'Tổng số', 'Tỷ lệ (%)'],
         [taskProgress.done, taskProgress.total, taskProgress.pct],
       ];
 
-      rows.push([], ['CHI PHÍ TRONG KỲ'], ['Loại chi phí', 'Số tiền', 'Người thêm', 'Trạng thái', 'Ngày tạo', 'Mô tả']);
+      rows.push(
+        [],
+        ['CHI PHÍ TRONG KỲ'],
+        ['Loại chi phí', 'Số tiền gốc', 'Tiền tệ', 'Tỉ giá', `Quy đổi (${displayCurrency})`, 'Người thêm', 'Trạng thái', 'Ngày tạo', 'Mô tả']
+      );
       if (periodCosts.length === 0) {
         rows.push(['Không có chi phí trong kỳ']);
       } else {
@@ -458,6 +567,14 @@ export function useDashboardFilter(options?: { onRealtime?: () => void }) {
           rows.push([
             cost.type,
             cost.amount,
+            normalizeCurrency(cost.currency, 'VND'),
+            normalizeUsdVndRate(cost.usdVndRate),
+            convertAmount(
+              cost.amount,
+              normalizeCurrency(cost.currency, 'VND'),
+              normalizeUsdVndRate(cost.usdVndRate),
+              displayCurrency
+            ),
             cost.creator?.name || (cost.userId ? `#${cost.userId}` : '—'),
             costStatusText(cost),
             formatExportDateTime(cost.createdAt),
@@ -466,12 +583,27 @@ export function useDashboardFilter(options?: { onRealtime?: () => void }) {
         });
       }
 
-      rows.push([], ['DOANH THU AFFILIATE TRONG KỲ'], ['Số tiền', 'Ngày']);
+      rows.push(
+        [],
+        ['DOANH THU AFFILIATE TRONG KỲ'],
+        ['Số tiền gốc', 'Tiền tệ', 'Tỉ giá', `Quy đổi (${displayCurrency})`, 'Ngày']
+      );
       if (periodRevenue.length === 0) {
         rows.push(['Không có doanh thu trong kỳ']);
       } else {
         periodRevenue.forEach((row) => {
-          rows.push([row.amount, row.date ? formatExportDateTime(row.date) : '']);
+          rows.push([
+            row.amount,
+            normalizeCurrency(row.currency, 'USD'),
+            normalizeUsdVndRate(row.usdVndRate),
+            convertAmount(
+              row.amount,
+              normalizeCurrency(row.currency, 'USD'),
+              normalizeUsdVndRate(row.usdVndRate),
+              displayCurrency
+            ),
+            row.date ? formatExportDateTime(row.date) : '',
+          ]);
         });
       }
 
@@ -490,7 +622,7 @@ export function useDashboardFilter(options?: { onRealtime?: () => void }) {
       const filename = `bao-cao-tong-quan_${toInputDate(ranges.start)}_${toInputDate(ranges.end)}.csv`;
       downloadCsv(filename, rows[0].map(String), rows.slice(1));
     },
-    [affiliateRows, costLabel, costRows, filter, revenueLabel, stats, taskRows]
+    [affiliateScope, costLabel, displayCurrency, filter, revenueLabel, summary, taskRows]
   );
 
   return {
@@ -505,5 +637,7 @@ export function useDashboardFilter(options?: { onRealtime?: () => void }) {
     onFilterChange,
     applyCustom,
     exportReport,
+    displayCurrency,
+    setDisplayCurrency,
   };
 }

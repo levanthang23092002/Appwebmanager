@@ -34,6 +34,10 @@ export function DashboardPage() {
 
     exportReport,
 
+    displayCurrency,
+
+    setDisplayCurrency,
+
   } = useDashboardFilter({
 
     onRealtime: () => {
@@ -83,6 +87,17 @@ export function DashboardPage() {
           }}
 
         >
+
+          <select
+            className="btn btn-outline"
+            style={{ appearance: 'auto', cursor: 'pointer' }}
+            value={displayCurrency}
+            onChange={(e) => setDisplayCurrency(e.target.value as typeof displayCurrency)}
+            aria-label="Đơn vị hiển thị"
+          >
+            <option value="USD">USD ($)</option>
+            <option value="VND">VND (₫)</option>
+          </select>
 
           <select
 

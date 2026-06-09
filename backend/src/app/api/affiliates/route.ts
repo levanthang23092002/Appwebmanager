@@ -1,32 +1,42 @@
 import { NextResponse } from 'next/server';
+import { parseScope, revenueAccountFilter } from '@/lib/affiliateAccess';
+import { getAuthUser } from '@/lib/authRequest';
 import { prisma } from '@/lib/prisma';
 
-export async function GET() {
-    try {
-        const affiliates = await prisma.affiliateTx.findMany({
-            include: { assignee: true },
-            orderBy: { date: 'desc' }
-        });
-        return NextResponse.json(affiliates);
-    } catch (error) {
-        return NextResponse.json({ error: 'Failed to fetch affiliate transactions' }, { status: 500 });
+/** Legacy path — dashboard dùng { id, amount, date } */
+export async function GET(request: Request) {
+  try {
+    const authUser = getAuthUser(request);
+    if (!authUser) {
+      return NextResponse.json({ error: 'Cần đăng nhập' }, { status: 401 });
     }
-}
 
-export async function POST(request: Request) {
-    try {
-        const data = await request.json();
-        const newAffiliate = await prisma.affiliateTx.create({
-            data: {
-                source: data.source,
-                amount: parseFloat(data.amount),
-                status: data.status || 'PAID',
-                date: data.date ? new Date(data.date) : new Date(),
-                assigneeId: data.assigneeId ? parseInt(String(data.assigneeId), 10) : null
-            }
-        });
-        return NextResponse.json(newAffiliate, { status: 201 });
-    } catch (error) {
-        return NextResponse.json({ error: 'Failed to create affiliate record' }, { status: 500 });
-    }
+    const scope = parseScope(request.url);
+    const accountFilter = revenueAccountFilter(authUser, scope);
+
+    const rows = await prisma.affiliateRevenue.findMany({
+      where: accountFilter,
+      select: {
+        id: true,
+        amount: true,
+        currency: true,
+        usdVndRate: true,
+        revenueDate: true,
+      },
+      orderBy: { revenueDate: 'desc' },
+    });
+
+    return NextResponse.json(
+      rows.map((r) => ({
+        id: r.id,
+        amount: r.amount,
+        currency: r.currency,
+        usdVndRate: r.usdVndRate,
+        date: r.revenueDate.toISOString(),
+      }))
+    );
+  } catch (error) {
+    console.error('GET affiliates legacy:', error);
+    return NextResponse.json({ error: 'Failed to fetch affiliate transactions' }, { status: 500 });
+  }
 }

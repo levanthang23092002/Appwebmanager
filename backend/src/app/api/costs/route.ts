@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
+import { normalizeCurrency, normalizeUsdVndRate } from '@/lib/currency';
 import { getAuthUser } from '@/lib/authRequest';
 import { notifyCostCreatedToAdmins } from '@/lib/costNotify';
 import { emitCostEvent } from '@/lib/costEvents';
+import { getFinanceSettings } from '@/lib/financeSettings';
 import { prisma } from '@/lib/prisma';
 
 const userSelect = {
     id: true,
     name: true,
     email: true,
-    avatar: true,
     role: true,
 } as const;
 
@@ -61,11 +62,17 @@ export async function POST(request: Request) {
             }
         }
 
+        const settings = await getFinanceSettings();
+        const currency = normalizeCurrency(data.currency, 'VND');
+        const usdVndRate = normalizeUsdVndRate(data.usdVndRate, settings.usdVndRate);
+
         const autoApproved = authUser.role === 'admin';
         const newCost = await prisma.cost.create({
             data: {
                 type,
                 amount,
+                currency,
+                usdVndRate,
                 description: data.description?.trim() || null,
                 createdAt,
                 approved: autoApproved,

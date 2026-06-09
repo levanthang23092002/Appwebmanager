@@ -14,6 +14,8 @@ type CostForNotify = {
   id: number;
   type: string;
   amount: number;
+  currency?: string;
+  usdVndRate?: number;
   description?: string | null;
   approved: boolean;
   canceled?: boolean;
@@ -37,7 +39,11 @@ function escapeHtml(value: string) {
     .replace(/"/g, '&quot;');
 }
 
-function formatMoney(amount: number) {
+function formatMoney(amount: number, currency?: string) {
+  const c = String(currency || 'VND').trim().toUpperCase();
+  if (c === 'USD') {
+    return `$${amount.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+  }
   return `${amount.toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫`;
 }
 
@@ -50,7 +56,7 @@ function costMessage(cost: CostForNotify, statusLine: string) {
   return [
     '💸 <b>Duyệt chi phí mới</b>',
     `Loại: <b>${escapeHtml(cost.type)}</b>`,
-    `Số tiền: <b>${formatMoney(cost.amount)}</b>`,
+    `Số tiền: <b>${formatMoney(cost.amount, cost.currency)}</b>`,
     `Người thêm: <b>${creatorName}</b>${description}`,
     '',
     statusLine,
@@ -197,7 +203,7 @@ async function handleCostTelegramCallbackInner(payload: CostCallbackPayload) {
     }
     await sendTelegramMessage(
       canceled.creator?.telegram,
-      `❌ Chi phí <b>${escapeHtml(canceled.type)}</b> (${formatMoney(canceled.amount)}) đã bị admin <b>${escapeHtml(admin.name)}</b> hủy.`
+      `❌ Chi phí <b>${escapeHtml(canceled.type)}</b> (${formatMoney(canceled.amount, canceled.currency)}) đã bị admin <b>${escapeHtml(admin.name)}</b> hủy.`
     );
     emitCostEvent({ action: 'canceled', id: canceled.id });
     return true;
@@ -228,7 +234,7 @@ async function handleCostTelegramCallbackInner(payload: CostCallbackPayload) {
   }
   await sendTelegramMessage(
     updated.creator?.telegram,
-    `✅ Chi phí <b>${escapeHtml(updated.type)}</b> (${formatMoney(updated.amount)}) đã được admin <b>${escapeHtml(admin.name)}</b> duyệt.`
+    `✅ Chi phí <b>${escapeHtml(updated.type)}</b> (${formatMoney(updated.amount, updated.currency)}) đã được admin <b>${escapeHtml(admin.name)}</b> duyệt.`
   );
   emitCostEvent({ action: 'approved', id: updated.id });
 

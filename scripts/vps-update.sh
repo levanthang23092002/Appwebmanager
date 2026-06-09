@@ -13,8 +13,10 @@ export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=768}"
 export npm_config_audit=false
 export npm_config_fund=false
 
+# VPS Node 20: npm ci hay lỗi/treo — mặc định dùng npm install.
+# Muốn npm ci: VPS_USE_NPM_CI=1 bash scripts/vps-update.sh
 npm_install() {
-  if [[ -f package-lock.json ]]; then
+  if [[ "${VPS_USE_NPM_CI:-}" == "1" && -f package-lock.json ]]; then
     npm ci --no-audit --no-fund "$@"
   else
     npm install --no-audit --no-fund "$@"
@@ -24,13 +26,13 @@ npm_install() {
 echo "==> Git pull..."
 git pull --ff-only
 
-echo "==> Backend (npm ci + build)..."
+echo "==> Backend (npm install + build)..."
 cd "$ROOT/backend"
 npm_install
 npm run build
 npm run db:push
 
-echo "==> Frontend (npm ci + build)..."
+echo "==> Frontend (npm install + build)..."
 cd "$ROOT/frontends"
 npm_install
 npm run build

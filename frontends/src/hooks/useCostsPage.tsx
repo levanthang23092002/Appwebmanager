@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type ApexCharts from 'apexcharts';
 import { apiFetch } from '../lib/api';
+import {
+  convertAmount,
+  formatCompactMoney,
+  formatMoney,
+  normalizeCurrency,
+  normalizeUsdVndRate,
+  type CurrencyCode,
+} from '../lib/currency';
 import { downloadCsv } from '../lib/downloadCsv';
 import { useAuth } from '../lib/auth';
+import { useSystemSettings } from '../lib/systemSettings';
 import { useServerEvents } from './useServerEvents';
 import type { CostRecord } from '../lib/types';
 
@@ -22,6 +31,8 @@ export interface CostFormState {
   type: string;
   customType: string;
   amount: string;
+  currency: CurrencyCode;
+  usdVndRate: string;
   description: string;
   /** YYYY-MM-DD — mặc định hôm nay khi thêm mới */
   costDate: string;
@@ -33,6 +44,8 @@ export interface CostRow {
   id: number;
   type: string;
   amount: number;
+  currency: CurrencyCode;
+  usdVndRate: number;
   description?: string | null;
   approved: boolean;
   canceled: boolean;
@@ -48,6 +61,8 @@ function createDefaultForm(): CostFormState {
     type: '',
     customType: '',
     amount: '',
+    currency: 'VND',
+    usdVndRate: '27000',
     description: '',
     costDate: toInputDate(new Date()),
   };
@@ -70,6 +85,8 @@ function toRow(cost: CostRecord): CostRow {
     id: cost.id,
     type: cost.type,
     amount: cost.amount,
+    currency: normalizeCurrency(cost.currency, 'VND'),
+    usdVndRate: normalizeUsdVndRate(cost.usdVndRate),
     description: cost.description,
     approved: cost.approved,
     canceled: !!cost.canceled,
@@ -81,30 +98,36 @@ function toRow(cost: CostRecord): CostRow {
   };
 }
 
-export function formatCostAmount(amount: number) {
-  return `${amount.toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫`;
+export function formatCostAmount(amount: number, displayCurrency: CurrencyCode = 'USD') {
+  return formatMoney(amount, displayCurrency);
 }
 
-function formatShortNumber(value: number) {
-  return value.toLocaleString('vi-VN', {
-    maximumFractionDigits: value >= 10 ? 0 : 1,
-  });
+export function formatCompactCostAmount(amount: number, displayCurrency: CurrencyCode = 'USD') {
+  return formatCompactMoney(amount, displayCurrency);
 }
 
-export function formatCompactCostAmount(amount: number) {
-  const abs = Math.abs(amount);
-  if (abs >= 1_000_000_000) return `${formatShortNumber(amount / 1_000_000_000)} tỷ`;
-  if (abs >= 1_000_000) return `${formatShortNumber(amount / 1_000_000)} tr`;
-  return formatCostAmount(amount);
+function rowDisplayAmount(row: CostRow, display: CurrencyCode) {
+  return convertAmount(row.amount, row.currency, row.usdVndRate, display);
 }
 
-function formatAmountInput(value: string | number) {
+function formatAmountInput(value: string | number, currency: CurrencyCode) {
+  if (currency === 'USD') {
+    const cleaned = String(value).replace(/[^\d.]/g, '');
+    const parts = cleaned.split('.');
+    const intPart = parts[0] ? Number(parts[0]).toLocaleString('en-US') : '';
+    const dec = parts[1] != null ? `.${parts[1].slice(0, 2)}` : '';
+    return intPart + (cleaned.includes('.') ? dec : '');
+  }
   const digits = String(value).replace(/\D/g, '');
   if (!digits) return '';
   return Number(digits).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
-function parseAmountInput(value: string) {
+function parseAmountInput(value: string, currency: CurrencyCode) {
+  if (currency === 'USD') {
+    const n = parseFloat(value.replace(/,/g, ''));
+    return Number.isFinite(n) ? n : NaN;
+  }
   return Number(value.replace(/\D/g, ''));
 }
 
@@ -196,16 +219,17 @@ function emptyCostStats(): CostSplitStats {
   };
 }
 
-function addToCostStats(stats: CostSplitStats, row: CostRow) {
+function addToCostStats(stats: CostSplitStats, row: CostRow, display: CurrencyCode) {
   if (row.canceled) return;
-  stats.total += row.amount;
+  const value = rowDisplayAmount(row, display);
+  stats.total += value;
   stats.totalCount += 1;
   if (row.approved) {
-    stats.approved += row.amount;
+    stats.approved += value;
     stats.approvedCount += 1;
     return;
   }
-  stats.pending += row.amount;
+  stats.pending += value;
   stats.pendingCount += 1;
 }
 
@@ -234,6 +258,7 @@ function costRowExportMeta(row: CostRow) {
 
 export function useCostsPage() {
   const { token, user } = useAuth();
+  const { settings } = useSystemSettings();
   const [rows, setRows] = useState<CostRow[]>([]);
   const defaultRange = useMemo(() => thisMonthRange(), []);
   const [timeFilter, setTimeFilter] = useState<CostTimeFilter>('month');
@@ -247,6 +272,7 @@ export function useCostsPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [displayCurrency, setDisplayCurrency] = useState<CurrencyCode>('USD');
   const mainChartRef = useRef<HTMLDivElement>(null);
   const donutRef = useRef<HTMLDivElement>(null);
   const chartsRef = useRef<{ main?: ApexCharts; donut?: ApexCharts }>({});
@@ -335,14 +361,14 @@ export function useCostsPage() {
     ) as Record<(typeof COST_TYPES)[number], CostSplitStats>;
 
     filteredRows.forEach((row) => {
-      addToCostStats(total, row);
+      addToCostStats(total, row, displayCurrency);
       if (row.type in byType) {
-        addToCostStats(byType[row.type as (typeof COST_TYPES)[number]], row);
+        addToCostStats(byType[row.type as (typeof COST_TYPES)[number]], row, displayCurrency);
       }
     });
 
     return { total, byType };
-  }, [filteredRows]);
+  }, [displayCurrency, filteredRows]);
 
   const chartData = useMemo(() => {
     const groupMode = resolveGroupMode(chartRange.start, chartRange.end);
@@ -379,8 +405,9 @@ export function useCostsPage() {
             ? `${created.getFullYear()}-${pad(created.getMonth() + 1)}`
             : String(created.getFullYear());
       const bucket = buckets.get(bucketKey);
-      if (bucket) bucket.value += row.amount;
-      typeCosts.set(row.type, (typeCosts.get(row.type) || 0) + row.amount);
+      const value = rowDisplayAmount(row, displayCurrency);
+      if (bucket) bucket.value += value;
+      typeCosts.set(row.type, (typeCosts.get(row.type) || 0) + value);
     });
 
     const sourceLabels = Array.from(typeCosts.keys());
@@ -394,7 +421,7 @@ export function useCostsPage() {
       sourceSeries: sourceSeries.length ? sourceSeries : [0],
       rangeText: rangeLabel(chartRange.start, chartRange.end),
     };
-  }, [chartRange, filteredRows]);
+  }, [chartRange, displayCurrency, filteredRows]);
 
   useEffect(() => {
     let disposed = false;
@@ -436,12 +463,12 @@ export function useCostsPage() {
           },
           yaxis: {
             labels: {
-              formatter: (v: number) => `${Math.round(v).toLocaleString('vi-VN')} ₫`,
+              formatter: (v: number) => formatCostAmount(v, displayCurrency),
               style: { colors: '#94a3b8', fontSize: '12px' },
             },
           },
           tooltip: {
-            y: { formatter: (v: number) => formatCostAmount(v) },
+            y: { formatter: (v: number) => formatCostAmount(v, displayCurrency) },
           },
           noData: { text: 'Chưa có dữ liệu chi phí đã duyệt' },
         });
@@ -472,7 +499,7 @@ export function useCostsPage() {
             y: {
               formatter: (v, opts) => {
                 const pct = getDonutPercent(opts);
-                return `${pct.toFixed(1)}% - ${formatCostAmount(v)}`;
+                return `${pct.toFixed(1)}% - ${formatCostAmount(v, displayCurrency)}`;
               },
             },
           },
@@ -488,7 +515,7 @@ export function useCostsPage() {
       chartsRef.current.donut?.destroy();
       chartsRef.current = {};
     };
-  }, [chartData]);
+  }, [chartData, displayCurrency]);
 
   const loadCosts = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent ?? false;
@@ -522,7 +549,9 @@ export function useCostsPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm(createDefaultForm());
+    const base = createDefaultForm();
+    base.usdVndRate = String(settings.usdVndRate);
+    setForm(base);
     setModalOpen(true);
   };
 
@@ -535,7 +564,9 @@ export function useCostsPage() {
     setForm({
       type: isPresetCostType(row.type) ? row.type : COST_TYPE_CUSTOM,
       customType: isPresetCostType(row.type) ? '' : row.type,
-      amount: formatAmountInput(row.amount),
+      amount: formatAmountInput(row.amount, row.currency),
+      currency: row.currency,
+      usdVndRate: String(row.usdVndRate),
       description: row.description || '',
       costDate: row.createdAt
         ? toInputDate(new Date(row.createdAt))
@@ -552,12 +583,21 @@ export function useCostsPage() {
 
   const updateForm = (field: keyof CostFormState, value: string) => {
     setForm((prev) => {
+      const currency = field === 'currency' ? normalizeCurrency(value, 'VND') : prev.currency;
       const next: CostFormState = {
         ...prev,
-        [field]: field === 'amount' ? formatAmountInput(value) : value,
+        [field]:
+          field === 'amount'
+            ? formatAmountInput(value, currency)
+            : field === 'currency'
+              ? currency
+              : value,
       };
       if (field === 'type' && value !== COST_TYPE_CUSTOM) {
         next.customType = '';
+      }
+      if (field === 'currency' && prev.amount) {
+        next.amount = formatAmountInput(parseAmountInput(prev.amount, prev.currency), currency);
       }
       return next;
     });
@@ -574,12 +614,13 @@ export function useCostsPage() {
       return;
     }
 
-    const amount = parseAmountInput(form.amount);
+    const amount = parseAmountInput(form.amount, form.currency);
     if (!Number.isFinite(amount) || amount <= 0) {
       alert('Vui lòng nhập số tiền lớn hơn 0.');
       return;
     }
 
+    const usdVndRate = normalizeUsdVndRate(form.usdVndRate);
     const costDateObj = fromInputDate(form.costDate);
     if (!costDateObj) {
       alert('Vui lòng chọn ngày chi phí.');
@@ -591,6 +632,8 @@ export function useCostsPage() {
       const payload = {
         type: costType,
         amount,
+        currency: form.currency,
+        usdVndRate,
         description: form.description.trim(),
         costDate: costDateObj.toISOString(),
       };
@@ -661,7 +704,10 @@ export function useCostsPage() {
 
     const headers = [
       'Loại chi phí',
-      'Số tiền',
+      'Số tiền gốc',
+      'Tiền tệ',
+      'Tỉ giá (1 USD = VND)',
+      `Quy đổi (${displayCurrency})`,
       'Người thêm',
       'Người xử lý',
       'Trạng thái',
@@ -674,6 +720,9 @@ export function useCostsPage() {
       return [
         row.type,
         row.amount,
+        row.currency,
+        row.usdVndRate,
+        rowDisplayAmount(row, displayCurrency),
         row.creatorName,
         handlerName,
         statusText,
@@ -684,7 +733,7 @@ export function useCostsPage() {
 
     const filename = `danh-sach-chi-phi_${toInputDate(chartRange.start)}_${toInputDate(chartRange.end)}.csv`;
     downloadCsv(filename, headers, dataRows);
-  }, [chartRange, filteredRows]);
+  }, [chartRange, displayCurrency, filteredRows]);
 
   return {
     user,
@@ -723,5 +772,7 @@ export function useCostsPage() {
     approveCost,
     deleteCost,
     exportExcel,
+    displayCurrency,
+    setDisplayCurrency,
   };
 }

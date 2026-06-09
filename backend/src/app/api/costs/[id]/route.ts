@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
+import { normalizeCurrency, normalizeUsdVndRate } from '@/lib/currency';
 import { getAuthUser } from '@/lib/authRequest';
 import { emitCostEvent } from '@/lib/costEvents';
+import { getFinanceSettings } from '@/lib/financeSettings';
 import { prisma } from '@/lib/prisma';
 
 const userSelect = {
@@ -75,9 +77,13 @@ export async function PATCH(request: Request, context: RouteCtx) {
             return NextResponse.json({ error: 'Không có quyền chỉnh sửa chi phí này' }, { status: 403 });
         }
 
+        const settings = await getFinanceSettings();
+
         const updateData: {
             type?: string;
             amount?: number;
+            currency?: string;
+            usdVndRate?: number;
             description?: string | null;
             createdAt?: Date;
         } = {};
@@ -104,6 +110,12 @@ export async function PATCH(request: Request, context: RouteCtx) {
             if (Number.isFinite(parsed.getTime())) {
                 updateData.createdAt = parsed;
             }
+        }
+        if (data.currency != null) {
+            updateData.currency = normalizeCurrency(data.currency, 'VND');
+        }
+        if (data.usdVndRate != null) {
+            updateData.usdVndRate = normalizeUsdVndRate(data.usdVndRate, settings.usdVndRate);
         }
 
         const updated = await prisma.cost.update({

@@ -21,7 +21,8 @@ model User {
   updatedAt       DateTime      @updatedAt
   tasksAssigned   Task[]        @relation("AssignedTasks")
   tasksCreated    Task[]        @relation("CreatedTasks")
-  affiliates      AffiliateTx[] @relation("ManagedAffiliates")
+  affiliateAccounts AffiliateAccount[] @relation("AffiliateAccountOwner")
+  affiliateRevenues AffiliateRevenue[] @relation("AffiliateRevenueCreator")
   costs           Cost[]        @relation("CostCreator")
   approvedCosts   Cost[]        @relation("CostApprover")
   canceledCosts   Cost[]        @relation("CostCanceller")
@@ -30,6 +31,15 @@ model User {
   dailyReports    DailyReport[]
 
   @@index([status])
+}
+
+/** Cấu hình hệ thống — tỉ giá, logo, tên app (admin, id = 1) */
+model FinanceSettings {
+  id         Int      @id @default(1)
+  usdVndRate Float    @default(27000)
+  logo       String?  @db.Text
+  appName    String   @default("Eagle Rise")
+  updatedAt  DateTime @updatedAt
 }
 
 /** Giờ làm việc chấm công (một bản ghi duy nhất, id = 1) */
@@ -121,27 +131,103 @@ model Task {
   @@index([assigneeId])
   @@index([assignerId])
   @@index([status])
+  @@index([updatedAt])
 }
 
-model AffiliateTx {
-  id         Int      @id @default(autoincrement())
-  source     String
-  amount     Float
-  status     String
-  date       DateTime @default(now())
-  assigneeId Int?
-  assignee   User?    @relation("ManagedAffiliates", fields: [assigneeId], references: [id], onDelete: SetNull)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+/** Network affiliate — admin quản lý (Impact, Shopify Collab, ...) */
+model AffiliateNetwork {
+  id        Int      @id @default(autoincrement())
+  name      String
+  code      String   @unique
+  logo      String?  @db.Text
+  active    Boolean  @default(true)
+  syncType  String   @default("manual")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  accounts  AffiliateAccount[]
+  revenues  AffiliateRevenue[]
 
-  @@index([date])
-  @@index([assigneeId])
+  @@index([active])
+}
+
+/** Tài khoản đăng nhập trên network — nhân viên/quản lý sở hữu */
+model AffiliateAccount {
+  id           Int              @id @default(autoincrement())
+  networkId    Int
+  network      AffiliateNetwork @relation(fields: [networkId], references: [id], onDelete: Restrict)
+  ownerId      Int
+  owner        User             @relation("AffiliateAccountOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  name         String
+  loginEmail   String
+  passwordEnc  String           @db.Text
+  note         String?          @db.Text
+  dashboardUrl String?          @db.Text
+  active       Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  stores       AffiliateStore[]
+  revenues     AffiliateRevenue[]
+
+  @@unique([networkId, loginEmail])
+  @@index([ownerId])
+  @@index([networkId])
+  @@index([active])
+}
+
+/** Website/cửa hàng — tạo lazy khi nhập doanh thu hoặc sync API */
+model AffiliateStore {
+  id          Int              @id @default(autoincrement())
+  accountId   Int
+  account     AffiliateAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  name        String?
+  domain      String
+  externalRef String?
+  active      Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  revenues    AffiliateRevenue[]
+
+  @@unique([accountId, domain])
+  @@index([accountId])
+}
+
+/** Bản ghi doanh thu — nhập tay hoặc API tự động */
+model AffiliateRevenue {
+  id              Int              @id @default(autoincrement())
+  networkId       Int
+  network         AffiliateNetwork @relation(fields: [networkId], references: [id], onDelete: Restrict)
+  accountId       Int
+  account         AffiliateAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  storeId         Int?
+  store           AffiliateStore?  @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  storeDomain     String?
+  amount          Float
+  orderCount      Int?
+  currency        String           @default("USD")
+  usdVndRate      Float            @default(27000)
+  revenueDate     DateTime         @db.Date
+  source          String           @default("MANUAL")
+  status          String           @default("APPROVED")
+  note            String?          @db.Text
+  externalOrderId String?
+  createdById     Int
+  createdBy       User             @relation("AffiliateRevenueCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([revenueDate])
+  @@index([accountId])
+  @@index([networkId])
+  @@index([createdById])
+  @@index([source])
 }
 
 model Cost {
   id          Int       @id @default(autoincrement())
   type        String
   amount      Float
+  currency    String    @default("VND")
+  usdVndRate  Float     @default(27000)
   description String?   @db.Text
   approved    Boolean   @default(false)
   approvedAt  DateTime?
@@ -161,4 +247,5 @@ model Cost {
   @@index([userId])
   @@index([approverId])
   @@index([cancellerId])
+  @@index([createdAt])
 }

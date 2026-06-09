@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import logoImg from '../../assets/logo.png';
 import { TelegramLinkModal } from '../telegram/TelegramLinkModal';
 import { apiFetch } from '../../lib/api';
 import { getUserAvatarUrl } from '../../lib/avatar';
 import { roleLabel, useAuth } from '../../lib/auth';
+import { useSystemSettings } from '../../lib/systemSettings';
 import { TasksNavGroup } from './TasksNavGroup';
 
 const mainNav = [
@@ -17,6 +17,7 @@ const manageNav = [
   { to: '/costs', label: 'Chi phí', icon: 'bx-wallet', end: false },
   { to: '/attendance', label: 'Chấm công', icon: 'bx-time-five', end: false },
   { to: '/hr', label: 'Nhân sự', icon: 'bx-user-pin', end: false },
+  { to: '/system', label: 'Hệ thống', icon: 'bx-cog', end: false },
 ];
 
 interface SidebarProps {
@@ -54,8 +55,9 @@ function NavItem({
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const { user, token, login, logout, canAccess } = useAuth();
+  const { logoUrl, settings } = useSystemSettings();
   const showManage =
-    canAccess('/costs') || canAccess('/attendance') || canAccess('/hr');
+    canAccess('/costs') || canAccess('/attendance') || canAccess('/hr') || canAccess('/system');
   const [telegramModalOpen, setTelegramModalOpen] = useState(false);
   const needsTelegram = !!user && !user.telegram?.trim();
 
@@ -92,8 +94,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         <div className="logo sidebar-logo">
           <NavLink to="/" onClick={onClose} className="logo-link sidebar-logo-link">
             <img
-              src={logoImg}
-              alt="Eagle Rise — Nâng tầm khát vọng"
+              src={logoUrl}
+              alt={settings.appName}
               className="logo-img sidebar-logo-img"
             />
           </NavLink>

@@ -3,7 +3,12 @@
 USE entdash;
 
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS `AffiliateRevenue`;
+DROP TABLE IF EXISTS `AffiliateStore`;
+DROP TABLE IF EXISTS `AffiliateAccount`;
+DROP TABLE IF EXISTS `AffiliateNetwork`;
 DROP TABLE IF EXISTS `AffiliateTx`;
+DROP TABLE IF EXISTS `FinanceSettings`;
 DROP TABLE IF EXISTS `Task`;
 DROP TABLE IF EXISTS `Cost`;
 DROP TABLE IF EXISTS `User`;

@@ -30,6 +30,23 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Không có quyền xem tất cả task' }, { status: 403 });
         }
 
+        const lite = searchParams.get('lite') === '1';
+
+        if (lite) {
+            const tasks = await prisma.task.findMany({
+                where,
+                select: {
+                    id: true,
+                    title: true,
+                    status: true,
+                    deadline: true,
+                    updatedAt: true,
+                },
+                orderBy: { updatedAt: 'desc' },
+            });
+            return NextResponse.json(tasks);
+        }
+
         const tasks = await prisma.task.findMany({
             where,
             include: {

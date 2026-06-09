@@ -236,12 +236,12 @@ git log -3 --oneline
 git diff HEAD~1 --stat
 
 cd backend
-npm ci && npm run build
+npm install && npm run build
 npm run db:push          # chỉ cần khi có bảng/cột mới trong prisma/schema.prisma
 pm2 restart api
 
 cd ../frontends
-npm ci && npm run build
+npm install && npm run build
 ```
 
 Trình duyệt: **Ctrl+F5** (hoặc xóa cache) để thấy giao diện mới.
@@ -293,7 +293,9 @@ Cảnh báo `EBADENGINE` Prisma/node 22 trên Node 20 thường **chỉ là warn
 
 | Lỗi | Cách xử lý |
 |-----|------------|
+| `npm ci` lỗi / treo | Dùng `npm install` (script `vps-update.sh` đã đổi mặc định) |
 | `npm ci` → `Killed` | Thêm swap 2GB (mục trên) hoặc nâng RAM VPS |
+| `EBADENGINE` Prisma | Cảnh báo Node 20 vs 22 — **bỏ qua** nếu build vẫn chạy tiếp |
 | `git pull` conflict | `git stash` hoặc sửa conflict; tránh sửa code trực tiếp trên VPS |
 | `P1000` / DB | Kiểm tra `DATABASE_URL` trong `backend/.env` |
 | `db:push` báo mất data | Đọc kỹ câu hỏi Prisma; backup DB trước: `mysqldump entdash > backup.sql` |

@@ -29,7 +29,7 @@ export async function getNotificationsForUser(user: AuthPayload): Promise<AppNot
   const items: AppNotification[] = [];
 
   if (user.role === 'admin') {
-    const [pendingCosts, pendingUsers] = await Promise.all([
+    const [pendingCosts, pendingUsers, recentReports] = await Promise.all([
       prisma.cost.findMany({
         where: { approved: false, canceled: false },
         include: { creator: { select: { name: true } } },
@@ -39,6 +39,15 @@ export async function getNotificationsForUser(user: AuthPayload): Promise<AppNot
       prisma.user.findMany({
         where: { status: 'PENDING' },
         orderBy: { createdAt: 'desc' },
+        take: 30,
+      }),
+      prisma.dailyReport.findMany({
+        where: {
+          status: REPORT_STATUS.SUBMITTED,
+          submittedAt: { not: null },
+        },
+        include: { user: { select: { name: true } } },
+        orderBy: { submittedAt: 'desc' },
         take: 30,
       }),
     ]);
@@ -69,16 +78,6 @@ export async function getNotificationsForUser(user: AuthPayload): Promise<AppNot
       });
     }
 
-    const recentReports = await prisma.dailyReport.findMany({
-      where: {
-        status: REPORT_STATUS.SUBMITTED,
-        submittedAt: { not: null },
-      },
-      include: { user: { select: { name: true } } },
-      orderBy: { submittedAt: 'desc' },
-      take: 30,
-    });
-
     for (const report of recentReports) {
       items.push({
         id: `report-${report.id}`,
@@ -92,17 +91,28 @@ export async function getNotificationsForUser(user: AuthPayload): Promise<AppNot
     }
   }
 
-  const assigneeTasks = await prisma.task.findMany({
-    where: {
-      assigneeId: user.id,
-      status: {
-        in: [TASK_STATUS.PENDING_ACCEPTANCE, TASK_STATUS.TODO, TASK_STATUS.IN_PROGRESS],
+  const [assigneeTasks, reviewTasks] = await Promise.all([
+    prisma.task.findMany({
+      where: {
+        assigneeId: user.id,
+        status: {
+          in: [TASK_STATUS.PENDING_ACCEPTANCE, TASK_STATUS.TODO, TASK_STATUS.IN_PROGRESS],
+        },
       },
-    },
-    include: { assigner: { select: { name: true } } },
-    orderBy: { updatedAt: 'desc' },
-    take: 40,
-  });
+      include: { assigner: { select: { name: true } } },
+      orderBy: { updatedAt: 'desc' },
+      take: 40,
+    }),
+    prisma.task.findMany({
+      where: {
+        assignerId: user.id,
+        status: TASK_STATUS.REVIEW,
+      },
+      include: { assignee: { select: { name: true } } },
+      orderBy: { updatedAt: 'desc' },
+      take: 30,
+    }),
+  ]);
 
   for (const task of assigneeTasks) {
     if (task.status === TASK_STATUS.PENDING_ACCEPTANCE) {
@@ -137,16 +147,6 @@ export async function getNotificationsForUser(user: AuthPayload): Promise<AppNot
       });
     }
   }
-
-  const reviewTasks = await prisma.task.findMany({
-    where: {
-      assignerId: user.id,
-      status: TASK_STATUS.REVIEW,
-    },
-    include: { assignee: { select: { name: true } } },
-    orderBy: { updatedAt: 'desc' },
-    take: 30,
-  });
 
   for (const task of reviewTasks) {
     items.push({

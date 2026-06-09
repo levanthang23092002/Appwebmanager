@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AuthProvider } from './lib/auth';
+import { SystemSettingsProvider } from './lib/systemSettings';
 import { AttendancePage } from './pages/AttendancePage';
 import { CostsPage } from './pages/CostsPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -11,12 +12,14 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { SystemPage } from './pages/SystemPage';
 import { TasksPage } from './pages/TasksPage';
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <SystemSettingsProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -35,10 +38,12 @@ export default function App() {
             <Route path="attendance" element={<AttendancePage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="hr" element={<HrPage />} />
+            <Route path="system" element={<SystemPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </SystemSettingsProvider>
       </AuthProvider>
     </BrowserRouter>
   );

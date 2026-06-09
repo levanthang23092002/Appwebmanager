@@ -6,6 +6,11 @@ import {
   useCostsPage,
   type CostRow,
 } from '../hooks/useCostsPage';
+import { formatOriginalMoney } from '../lib/currency';
+
+function formatExchangeRate(rate: number) {
+  return `1 USD = ${rate.toLocaleString('vi-VN')} ₫`;
+}
 
 function formatCostDate(value?: string) {
   if (!value) return '—';
@@ -110,7 +115,10 @@ function CostMobileCard(props: CostRowActionsProps) {
         <span className="costs-mobile-card__type">{row.type}</span>
         <span className={`status-pill ${statusClass}`}>{statusText}</span>
       </div>
-      <div className="costs-mobile-card__amount">{formatCostAmount(row.amount)}</div>
+      <div className="costs-mobile-card__amount">
+        {formatOriginalMoney(row.amount, row.currency)}
+      </div>
+      <div className="costs-mobile-card__rate">{formatExchangeRate(row.usdVndRate)}</div>
       <div className="costs-mobile-card__meta">
         <span>
           <i className="bx bx-user" /> {row.creatorName}
@@ -166,6 +174,8 @@ export function CostsPage() {
     approveCost,
     deleteCost,
     exportExcel,
+    displayCurrency,
+    setDisplayCurrency,
   } = useCostsPage();
   const [detailCost, setDetailCost] = useState<CostRow | null>(null);
 
@@ -210,6 +220,18 @@ export function CostsPage() {
       <div className="page-header page-header-finance">
         <h2 className="page-title">Quản lý Chi phí</h2>
         <div className="page-header-finance__actions costs-header-actions">
+          <div className="costs-filter-control">
+            <i className="bx bx-dollar" />
+            <select
+              className="costs-time-filter"
+              value={displayCurrency}
+              onChange={(e) => setDisplayCurrency(e.target.value as typeof displayCurrency)}
+              aria-label="Đơn vị hiển thị"
+            >
+              <option value="USD">USD ($)</option>
+              <option value="VND">VND (₫)</option>
+            </select>
+          </div>
           <div className="costs-filter-control">
             <i className="bx bx-calendar" />
             <select
@@ -286,19 +308,21 @@ export function CostsPage() {
             <div className="stat-header costs-stat-header" style={{ marginBottom: 8 }}>
               <div className="stat-details">
                 <p>{s.label}</p>
-                <h3 title={formatCostAmount(s.data.total)}>{formatCostAmount(s.data.total)}</h3>
+                <h3 title={formatCostAmount(s.data.total, displayCurrency)}>
+                  {formatCostAmount(s.data.total, displayCurrency)}
+                </h3>
                 <div className="costs-stat-breakdown">
                   <span>
                     Đã duyệt:{' '}
-                    <strong title={formatCostAmount(s.data.approved)}>
-                      {formatCostAmount(s.data.approved)}
+                    <strong title={formatCostAmount(s.data.approved, displayCurrency)}>
+                      {formatCostAmount(s.data.approved, displayCurrency)}
                     </strong>
                     <em>{s.data.approvedCount} khoản</em>
                   </span>
                   <span>
                     Chưa duyệt:{' '}
-                    <strong title={formatCostAmount(s.data.pending)}>
-                      {formatCostAmount(s.data.pending)}
+                    <strong title={formatCostAmount(s.data.pending, displayCurrency)}>
+                      {formatCostAmount(s.data.pending, displayCurrency)}
                     </strong>
                     <em>{s.data.pendingCount} khoản</em>
                   </span>
@@ -358,6 +382,7 @@ export function CostsPage() {
                 <tr>
                   <th>Loại chi phí</th>
                   <th>Số tiền</th>
+                  <th>Tỉ giá</th>
                   <th>Người thêm</th>
                   <th>Người xử lý</th>
                   <th>Trạng thái</th>
@@ -367,13 +392,13 @@ export function CostsPage() {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={6}>Đang tải chi phí...</td>
+                    <td colSpan={7}>Đang tải chi phí...</td>
                   </tr>
                 )}
 
                 {!loading && rows.length === 0 && (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       {hasActiveFilters
                         ? 'Không có chi phí phù hợp bộ lọc đã chọn.'
                         : 'Không có chi phí trong khoảng thời gian này.'}
@@ -388,7 +413,12 @@ export function CostsPage() {
                     return (
                       <tr key={row.id}>
                         <td>{row.type}</td>
-                        <td className="font-bold text-danger">{formatCostAmount(row.amount)}</td>
+                        <td className="font-bold text-danger">
+                          {formatOriginalMoney(row.amount, row.currency)}
+                        </td>
+                        <td className="text-muted" style={{ fontSize: 13 }}>
+                          {formatExchangeRate(row.usdVndRate)}
+                        </td>
                         <td>{row.creatorName}</td>
                         <td>{handlerName}</td>
                         <td>
@@ -460,6 +490,35 @@ export function CostsPage() {
             <div className="form-row" style={{ marginBottom: 16 }}>
               <div className="form-group half">
                 <label>
+                  Tiền tệ <span className="text-danger">*</span>
+                </label>
+                <select
+                  className="form-input"
+                  value={form.currency}
+                  onChange={(e) => updateForm('currency', e.target.value)}
+                >
+                  <option value="VND">VND (₫)</option>
+                  <option value="USD">USD ($)</option>
+                </select>
+              </div>
+              <div className="form-group half">
+                <label>
+                  Tỉ giá (1 USD = ? VND) <span className="text-danger">*</span>
+                </label>
+                <input
+                  className="form-input"
+                  type="text"
+                  inputMode="numeric"
+                  value={form.usdVndRate}
+                  onChange={(e) => updateForm('usdVndRate', e.target.value.replace(/[^\d]/g, ''))}
+                  placeholder="27000"
+                />
+              </div>
+            </div>
+
+            <div className="form-row" style={{ marginBottom: 16 }}>
+              <div className="form-group half">
+                <label>
                   Ngày chi phí <span className="text-danger">*</span>
                 </label>
                 <input
@@ -471,7 +530,7 @@ export function CostsPage() {
               </div>
               <div className="form-group half">
                 <label>
-                  Số tiền <span className="text-danger">*</span>
+                  Số tiền ({form.currency}) <span className="text-danger">*</span>
                 </label>
                 <input
                   className="form-input"
@@ -479,7 +538,7 @@ export function CostsPage() {
                   inputMode="numeric"
                   value={form.amount}
                   onChange={(e) => updateForm('amount', e.target.value)}
-                  placeholder="Ví dụ: 100,000,000"
+                  placeholder={form.currency === 'USD' ? 'Ví dụ: 1,250.50' : 'Ví dụ: 100,000,000'}
                 />
               </div>
             </div>
@@ -523,7 +582,10 @@ export function CostsPage() {
               <div className="cost-detail-hero">
                 <div>
                   <span>Số tiền</span>
-                  <strong>{formatCostAmount(detailCost.amount)}</strong>
+                  <strong>{formatOriginalMoney(detailCost.amount, detailCost.currency)}</strong>
+                  <small style={{ display: 'block', marginTop: 4, color: 'var(--slate-500)' }}>
+                    Tỉ giá: 1 USD = {detailCost.usdVndRate.toLocaleString('vi-VN')} VND
+                  </small>
                 </div>
                 <span
                   className={`status-pill ${
